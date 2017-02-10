@@ -1,0 +1,65 @@
+---
+title: "ggplot2 第三次期中作業"
+author: "Taylor Bond"
+date: "2017年1月23日"
+output: html_document
+---
+
+```{r echo=FALSE,message=FALSE}
+  library(ggplot2)
+```
+###第三次期中作業，使用`ggplot2`繪圖###
+- 散布圖
+- 線圖
+- 直方圖
+- 合鬚圖
+- 長條圖
+
+###使用`Orange`資料集，內容如下###
+```{r}
+summary(Orange)
+str(Orange)
+```
+
+
+###散布圖###
+```{r}
+
+  ggplot(Orange, aes(x = age, y = circumference)) + 
+  geom_point(aes(colour = factor(Tree)),size=4)+
+  ggtitle("Age vs. Circumference") +
+  xlab("Age") +
+  ylab("Circumference")
+
+```
+
+###線圖###
+```{r}
+  ggplot(Orange, aes(x = age, y = circumference))+
+  geom_point(aes(colour = factor(Tree)),size=5)+
+  geom_line()+
+  ggtitle("Age vs. Circumference")+
+  xlab("Age")+
+  ylab("Circumference")
+
+```
+
+###直方圖###
+```{r message=FALSE}
+ggplot(Orange, aes(circumference)) +geom_histogram()
+
+```
+
+###合鬚圖###
+
+```{r}
+ggplot(Orange, aes(x = 1, y = age))+geom_boxplot()
+
+```
+
+###長條圖###
+```{r}
+  ggplot(Orange, aes(x = age, y = circumference))+
+  geom_bar(stat = "identity",colour='yellow',aes(fill=circumference))+
+  coord_flip()
+```

@@ -1,0 +1,37 @@
+---
+title: "Pipe %>% midterm 5"
+author: "Taylor Bond"
+date: "2017年1月31日"
+output: html_document
+---
+
+```{r message=FALSE,echo=FALSE,knitr-hello,results='asis'}
+#安裝並載入套件
+library(magrittr)
+library(xtable)
+```
+
+
+```{r}
+# 讀取雲端資料
+load(url("https://storage.googleapis.com/r_rookies/straw_hat_df.RData"))
+straw_hat_df
+
+```
+
+
+
+```{r}
+# 使用Pipe簡化程式
+straw_hat_df$birth_date <- Sys.Date() %>%
+    format(format="%Y") %>%
+    as.numeric() %>%
+    `-`(straw_hat_df$age) %>%
+    paste(.,straw_hat_df$birthday, sep = "-") %>%
+    as.Date()
+straw_hat_df$birth_date
+
+straw_hat_df
+```
+
+

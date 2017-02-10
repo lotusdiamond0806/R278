@@ -1,0 +1,231 @@
+---
+title: "R programming 278 期末報告"
+author: "Taylor Bond"
+date: "2017年2月3日"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 2
+---
+
+
+
+***
+
+#**1. 資料概覽**
+
+>先載入須用到的套件
+```{r message=FALSE}
+library(Rcpp)
+library(mice) #要用到mice() md.pattern()
+library(ggplot2)
+library(plotly)
+library(rpart)
+library(randomForest)
+library(dplyr)
+library(magrittr)
+library(VIM)
+library(missForest)
+library(reshape2) #要用facet()
+library(leaflet) #要標示港口的地點
+```
+
+>讀取雲端資料
+
+```{r }
+titanic <- read.csv("https://storage.googleapis.com/r_rookies/kaggle_titanic_train.csv")
+```
+
+>先觀察資料集外觀，使用`str()`取得資料內部結構
+
+```{r}
+str(titanic)
+```
+
+>使用`summary()`取得資料內部結構
+
+```{r}
+summary(titanic)
+```
+
+>使用`mice()`套件中的`md.pattern()`，可直接看出有哪些遺漏項目。在891個物件中，有714個項目沒有任何資料遺失  但其中有177筆資料有遺漏，而且都是Age
+
+```{r}
+md.pattern(titanic)
+```
+
+>也可使用`aggr`繪製圖表，可發現遺漏項都是Age
+
+```{r}
+titanic_plot <- aggr(titanic, col=c('green','red'),numbers=TRUE, sortVars=TRUE,labels=names(titanic), cex.axis=.7,gap=3, ylab=c("Missing data","Pattern"))
+
+```
+
+
+>遺漏的Age,用平均進行填補
+```{r message=FALSE}
+Age.mean <- mean(titanic$Age,na.rm=TRUE)
+Age.mean
+titanic$Age[is.na(titanic$Age)] <- Age.mean
+nrow(titanic)
+```
+>發現Embarked有遺漏項目，用'S'填補
+```{r}
+table(titanic$Embarked)
+titanic$Embarked <- as.character(titanic$Embarked)
+titanic$Embarked[titanic$Embarked == ""] <- "S"
+titanic$Embarked <- factor(titanic$Embarked)
+#將Survived轉成factor
+titanic$Survived <- factor(titanic$Survived)
+n <- nrow(titanic)
+n #沒有移除遺漏項，有891項
+```
+>資料集的物件，仍為891個。
+
+***
+
+#**2. 探索性資料分析**
+>一般而言，社經地位高的比較容易得到好的照顧，檢視一下在鐵達尼號上，生死存亡之際是否有類似情況。
+
+```{r}
+#採用 stack 堆疊顯示。
+P_S<-ggplot(titanic, aes(x = Pclass)) +
+  geom_bar(aes(fill =Survived ),position="stack")+
+  ggtitle("社經地位與存活")
+ggplotly(P_S)
+```
+
+>觀察後發現，Pclass= 1的人數本來就比Pclass=3少，結果存活的人還比Pclass=3還多。而且從圖表可直接看到Pclass='1'的存活率超過1/2，Pclass='2'的存活率超過接近1/2，Pclass='3'的存活率遠低於1/2。
+
+####乘客分別由三個不同的港口上船。下面看一下地點在哪裡 
+####[Cherbourg](https://en.wikipedia.org/wiki/Cherbourg-Octeville)
+```{r}
+hello_map <- leaflet() %>%
+    addTiles() %>%
+    addMarkers( lat =49.6398,lng = -1.6164, popup = "Cherbourg-Octeville")
+hello_map
+```
+
+####[Queenstown](https://en.wikipedia.org/wiki/Cobh)
+```{r}
+hello_map <- leaflet() %>%
+    addTiles() %>%
+    addMarkers( lat =51.85722,lng = -8.29917, popup = "Queenstown")
+hello_map
+```
+
+####[Southampton](https://en.wikipedia.org/wiki/Southampton)
+```{r}
+hello_map <- leaflet() %>%
+    addTiles() %>%
+    addMarkers( lng = -1.40428,lat =50.90395, popup = "Southampton")
+hello_map
+```
+
+
+***
+>觀察上船地點與社經地位的資料，我們發現無論是什麼社經地位的人，都是來自Southampton的人數最多。
+```{r}
+#採用 dodge 並列顯示。
+E_P<-ggplot(titanic, aes(x = Pclass)) +
+  geom_bar(aes(fill = Embarked),position="dodge")+
+  ggtitle("社經地位與上船地點")
+ggplotly(E_P)
+
+```
+
+
+
+
+
+
+#**3. 資料處理與模型建立**
+
+>建立85%的訓練樣本與15%的測試樣本，並使用`randomForest()`建立模型預測存活情況
+```{r}
+#使用分類器
+set.seed(20170203)
+shuffled_titanic <- titanic[sample(n), ]
+train_indices <- 1:round(0.85 * n)
+train <- shuffled_titanic[train_indices, ]
+test_indices <- (round(0.85 * n) + 1):n
+test <- shuffled_titanic[test_indices, ]
+
+# randomForest限定處理的是factor
+set.seed(20170203)
+forest_fit <- randomForest(Survived ~ Pclass + Sex + Age + SibSp + Parch + Fare + Embarked, data = train, ntree = 500)
+
+prediction <- predict(forest_fit, newdata = test[, c("Pclass", "Sex", "Age", "SibSp", "Parch", "Fare", "Embarked")])
+confusion_matrix <- table(test$Survived, prediction)
+confusion_matrix
+accuracy <- sum(diag(confusion_matrix)) / sum(confusion_matrix)
+accuracy
+```
+
+>預測資料
+```{r}
+#讀進我們需要的資料
+url <- "https://storage.googleapis.com/py_ds_basic/kaggle_titanic_test.csv"
+to_predict <- read.csv(url)
+```
+
+>先對資料進行觀察
+```{r}
+#觀察後發現有，418objs,11variables
+summary(to_predict)
+```
+
+>使用`md.pattern`觀察，Age遺漏86筆資料，fare遺漏1筆資料
+```{r}
+md.pattern(to_predict)
+```
+    
+>對缺失的資料進行填補，Fare只有一個遺漏，直接用平均填補
+```{r}
+fare_mean <- mean(to_predict$Fare, na.rm = TRUE)
+fare_mean
+to_predict$Fare[is.na(to_predict$Fare)] <- fare_mean
+summary(to_predict$Fare)
+```
+
+>Age用Pclass填補
+```{r}
+to_predict%>%
+    group_by(Pclass)%>%
+    summarise(mean_age =mean(Age, na.rm = TRUE))
+mean_age_by_Pclass <- to_predict %>%
+    group_by(Pclass) %>%
+    summarise(mean_age = round(mean(Age, na.rm = TRUE)))
+filter_1 <- is.na(to_predict$Age) & to_predict$Pclass == 1
+filter_2 <- is.na(to_predict$Age) & to_predict$Pclass == 2
+filter_3 <- is.na(to_predict$Age) & to_predict$Pclass == 3
+to_predict[filter_1, ]$Age <- 41
+to_predict[filter_2, ]$Age <- 29
+to_predict[filter_3, ]$Age <- 24
+```
+
+>進行預測
+```{r}
+predicted <- predict(forest_fit, newdata = to_predict[, c("Pclass", "Sex", "Age", "SibSp", "Parch", "Fare", "Embarked")])
+to_submit <- data.frame(to_predict[, "PassengerId"], predicted)
+names(to_submit) <- c("PassengerId", "Survived")
+head(to_submit, n = 10)
+```
+
+>匯出cvs格式的檔案並上傳
+```{r}
+write.csv(to_submit, file = "to_submit_85:15_mean.csv", row.names = FALSE)
+```
+
+
+
+
+
+
+#**4. 參加Kaggle競賽**
+
+
+#**5. 參考資料**
+####[RMarkdown Reference Guide](https://www.rstudio.com/wp-content/uploads/2015/03/rmarkdown-reference.pdf)
+####[台大資工系統訓練班 R 程式設計班的教學專案](https://yaojenkuo.github.io/r_programming/)
